@@ -25,6 +25,8 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
   h1 { font-size: 18px; margin: 0; }
+  .head-actions { display: flex; gap: 8px; }
+  dialog.small { width: min(380px, 94vw); }
   h1 small { color: var(--muted); font-weight: normal; font-size: 12px; margin-left: 8px; }
   main { padding: 16px 24px 40px; max-width: 1200px; margin: 0 auto; }
   button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line);
@@ -91,8 +93,11 @@
 </head>
 <body>
 <header>
-  <h1>상품 관리<small>실습용 가상 데이터 · 로컬 전용</small></h1>
-  <button class="primary" id="btn-add">+ 상품 추가</button>
+  <h1>상품 관리<small>실습용 가상 데이터</small></h1>
+  <div class="head-actions">
+    <button id="btn-lock" title="추가·삭제에는 관리자 비밀번호가 필요합니다">🔒 관리자 로그인</button>
+    <button class="primary" id="btn-add">+ 상품 추가</button>
+  </div>
 </header>
 
 <main>
@@ -132,6 +137,22 @@
 <dialog id="dlg-detail">
   <div class="dlg-head"><h2 id="detail-title"></h2><button data-close>닫기</button></div>
   <div class="dlg-body" id="detail-body"></div>
+</dialog>
+
+<!-- 관리자 비밀번호 -->
+<dialog id="dlg-auth" class="small">
+  <form id="form-auth">
+    <div class="dlg-head"><h2>관리자 로그인</h2><button type="button" data-close>닫기</button></div>
+    <div class="dlg-body">
+      <div class="msg error" id="auth-msg"></div>
+      <p class="hint">추가·삭제에는 관리자 비밀번호가 필요합니다. 이 탭을 닫으면 다시 입력해야 합니다.</p>
+      <input name="password" type="password" autocomplete="current-password" placeholder="관리자 비밀번호" required>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" data-close>취소</button>
+      <button type="submit" class="primary">확인</button>
+    </div>
+  </form>
 </dialog>
 
 <!-- 상품 추가 -->
@@ -238,13 +259,59 @@ function showMsg(text, type = "ok") {
   if (type === "ok") showMsg.t = setTimeout(() => (el.className = "msg"), 3000);
 }
 
-async function api(method, url, body) {
-  const res = await fetch(url, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
+// ── 관리자 비밀번호 — 이 탭(sessionStorage)에만 보관 ──
+const PW_KEY = "product-admin-password";
+function getPassword() {
+  try { return sessionStorage.getItem(PW_KEY) || ""; } catch { return ""; }
+}
+function setPassword(pw) {
+  try { pw ? sessionStorage.setItem(PW_KEY, pw) : sessionStorage.removeItem(PW_KEY); } catch {}
+  updateLock();
+}
+function updateLock() {
+  $("#btn-lock").textContent = getPassword() ? "🔓 로그아웃" : "🔒 관리자 로그인";
+}
+
+let authResolve = null;
+// 비밀번호가 있으면 바로 true, 없으면 입력창을 띄워 확인될 때까지 기다린다
+function ensureAdmin() {
+  if (getPassword()) return Promise.resolve(true);
+  const f = $("#form-auth");
+  f.reset();
+  $("#auth-msg").className = "msg error";
+  $("#dlg-auth").showModal();
+  f.password.focus();
+  return new Promise((resolve) => (authResolve = resolve));
+}
+$("#form-auth").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const pw = $("#form-auth").password.value;
+  const res = await fetch("/api/auth", { method: "POST", headers: { "x-admin-password": pw } });
+  if (res.ok) {
+    setPassword(pw);
+    $("#dlg-auth").close();
+    authResolve?.(true);
+    authResolve = null;
+    return;
+  }
   const data = await res.json().catch(() => ({}));
+  $("#auth-msg").textContent = data.error || `확인 실패 (${res.status})`;
+  $("#auth-msg").className = "msg error show";
+});
+// 입력창을 그냥 닫으면 취소로 처리
+$("#dlg-auth").addEventListener("close", () => {
+  authResolve?.(false);
+  authResolve = null;
+});
+
+async function api(method, url, body) {
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (method !== "GET") headers["x-admin-password"] = getPassword();
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  // 비밀번호가 바뀌었거나 틀리면 저장값을 지운다
+  if (res.status === 401) setPassword("");
   if (!res.ok) throw new Error(data.error || `요청 실패 (${res.status})`);
   return data;
 }
@@ -336,6 +403,7 @@ function showDetail(id) {
 
 // ── 삭제 ──
 async function remove(id) {
+  if (!(await ensureAdmin())) return;
   const p = products.find((x) => x.product_id === id);
   if (!confirm(`'${p?.product_name ?? id}' (${id})을(를) 삭제할까요?\n원산지·알레르기·보관·안내 정보도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
   try {
@@ -361,7 +429,8 @@ function addRow(kind) {
   $(`#rows-${kind}`).appendChild(div);
 }
 
-function openAdd() {
+async function openAdd() {
+  if (!(await ensureAdmin())) return;
   const form = $("#form-add");
   form.reset();
   $("#add-msg").className = "msg error";
@@ -467,6 +536,15 @@ $("#f-reset").addEventListener("click", () => {
   render();
 });
 $("#btn-add").addEventListener("click", openAdd);
+$("#btn-lock").addEventListener("click", () => {
+  if (getPassword()) {
+    setPassword("");
+    showMsg("로그아웃했습니다");
+  } else {
+    ensureAdmin().then((ok) => ok && showMsg("관리자로 로그인했습니다"));
+  }
+});
+updateLock();
 $("#form-add").addEventListener("submit", submitAdd);
 
 $("#list").addEventListener("click", (e) => {

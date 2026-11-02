@@ -37,7 +37,16 @@
   - 실제 Supabase 연결 확인 — 조회 10건 정상 (추가·삭제는 실제 DB에서 아직 안 해 봄). 수정(편집) 기능은 없음
   - 키가 `.env.local.example`에 저장돼 있어 `.env.local`로 옮기고 예시 파일은 빈 템플릿으로 복구
 
+- GitHub 저장소 연결: https://github.com/dkdldjswm419-cpu/daegu2 (main), `.gitignore`로 `.env*` 제외
+- Vercel 배포 대응 (첫 배포는 Root Directory 미지정 + 상시 서버 구조라 404)
+  - `lib/products.js`로 공통 로직 분리, `api/` 서버리스 함수 3개, `vercel.json`(output: public)
+  - 추가 · 삭제에 관리자 비밀번호(`ADMIN_PASSWORD`) 필요. 조회는 공개. 비밀번호 미설정 시 쓰기 차단
+  - 로컬 서버 · Vercel 방식 하네스 · 브라우저 UI 모두 가짜 Supabase로 검증
+
 ### 남은 일
+- 로컬 `.env.local`에 `ADMIN_PASSWORD` 추가 (사용자)
+- Vercel: Root Directory `docs/dummy/product-admin`, 환경변수 4개 입력 후 Redeploy (사용자)
+- P-0410 달성 토마토가 실제 DB에서 삭제된 상태 — 복구 여부 결정
 - 실제 DB에서 추가 · 삭제 동작 확인 (사용자)
 - `products.category`(노란 칸)는 원문에 없어 임시값 — 확인 필요
 - 원문에 없는 값: 납작만두 원재료 원산지, 대추칩 개봉 전 보관기간
