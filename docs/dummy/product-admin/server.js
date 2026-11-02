@@ -4,7 +4,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
-const { configErrors, productsHandler, productByIdHandler, authHandler, send } = require("./lib/products");
+const { configErrors, productsHandler, productByIdHandler, send } = require("./lib/products");
 
 const PORT = Number(process.env.PORT) || 3030;
 const HOST = "127.0.0.1";
@@ -14,9 +14,6 @@ if (errors.length) {
   console.error(`.env.local 설정 오류 — ${errors.join(" / ")} (.env.local.example 참고)`);
   process.exit(1);
 }
-if (!process.env.ADMIN_PASSWORD) {
-  console.warn("ADMIN_PASSWORD가 없어 추가·삭제가 막힙니다. .env.local에 추가하세요");
-}
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -25,7 +22,6 @@ const server = http.createServer((req, res) => {
     return fs.createReadStream(path.join(__dirname, "public", "index.html")).pipe(res);
   }
   if (url.pathname === "/api/products") return productsHandler(req, res);
-  if (url.pathname === "/api/auth") return authHandler(req, res);
   const match = url.pathname.match(/^\/api\/products\/([^/]+)$/);
   if (match) {
     // Vercel의 [id].js와 같은 형태로 넘긴다

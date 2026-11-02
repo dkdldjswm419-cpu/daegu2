@@ -42,10 +42,11 @@
   - `lib/products.js`로 공통 로직 분리, `api/` 서버리스 함수 3개, `vercel.json`(output: public)
   - 추가 · 삭제에 관리자 비밀번호(`ADMIN_PASSWORD`) 필요. 조회는 공개. 비밀번호 미설정 시 쓰기 차단
   - 로컬 서버 · Vercel 방식 하네스 · 브라우저 UI 모두 가짜 Supabase로 검증
+- 비밀번호 제거: 실습용이라 누구나 조회 · 추가 · 삭제 (사용자 결정). `api/auth.js` 삭제
+- Vercel 빌드 오류 `vite build` (exit 127): Framework Preset이 Vite로 설정된 탓 → Other로 변경 안내
 
 ### 남은 일
-- 로컬 `.env.local`에 `ADMIN_PASSWORD` 추가 (사용자)
-- Vercel: Root Directory `docs/dummy/product-admin`, 환경변수 4개 입력 후 Redeploy (사용자)
+- Vercel: Root Directory `docs/dummy/product-admin`, Preset Other, 환경변수 3개 입력 후 최신 커밋 Redeploy (사용자)
 - P-0410 달성 토마토가 실제 DB에서 삭제된 상태 — 복구 여부 결정
 - 실제 DB에서 추가 · 삭제 동작 확인 (사용자)
 - `products.category`(노란 칸)는 원문에 없어 임시값 — 확인 필요

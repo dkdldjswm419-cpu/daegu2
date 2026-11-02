@@ -1,10 +1,10 @@
 // 상품 관리 공통 로직 — 로컬 서버(server.js)와 Vercel 함수(api/)가 함께 쓴다
 // - Supabase REST(PostgREST)로 products와 하위 테이블을 조회·추가·삭제한다
-// - 조회는 anon 키(RLS 읽기 허용), 추가·삭제는 service_role 키 + 관리자 비밀번호
-// - 키와 비밀번호는 서버에서만 쓰고 브라우저로 보내지 않는다
+// - 조회는 anon 키(RLS 읽기 허용), 추가·삭제는 service_role 키
+// - 실습용이라 로그인 없이 누구나 조회·추가·삭제할 수 있다
+// - 키는 서버에서만 쓰고 브라우저로 보내지 않는다
 const fs = require("node:fs");
 const path = require("node:path");
-const crypto = require("node:crypto");
 
 // 로컬에서는 .env.local을 읽는다. Vercel에서는 대시보드 환경변수를 쓴다
 const ENV_PATH = path.join(__dirname, "..", ".env.local");
@@ -14,7 +14,6 @@ const env = (k) => (process.env[k] || "").trim();
 const SUPABASE_URL = env("SUPABASE_URL").replace(/\/+$/, "");
 const ANON_KEY = env("SUPABASE_ANON_KEY");
 const SERVICE_KEY = env("SUPABASE_SERVICE_ROLE_KEY");
-const ADMIN_PASSWORD = env("ADMIN_PASSWORD");
 
 const CHILD_TABLES = {
   origins: "product_origins",
@@ -49,17 +48,6 @@ function configErrors() {
 function assertConfig() {
   const errors = configErrors();
   if (errors.length) throw httpError(500, `서버 설정 오류 — ${errors.join(" / ")}`);
-}
-
-// 관리자 비밀번호 확인. ADMIN_PASSWORD가 없으면 쓰기를 모두 막는다
-function checkPassword(given) {
-  if (!ADMIN_PASSWORD) {
-    throw httpError(503, "ADMIN_PASSWORD가 설정되지 않아 추가·삭제를 할 수 없습니다");
-  }
-  // 길이가 달라도 같은 시간이 걸리도록 해시끼리 비교
-  const a = crypto.createHash("sha256").update(String(given || "")).digest();
-  const b = crypto.createHash("sha256").update(ADMIN_PASSWORD).digest();
-  if (!crypto.timingSafeEqual(a, b)) throw httpError(401, "관리자 비밀번호가 올바르지 않습니다");
 }
 
 // Postgres 오류 코드를 한국어 안내로 바꾼다
@@ -180,16 +168,11 @@ function wrap(handler) {
   };
 }
 
-const passwordFrom = (req) => req.headers["x-admin-password"];
-
 // GET /api/products, POST /api/products
 const productsHandler = wrap(async (req, res) => {
   assertConfig();
   if (req.method === "GET") return send(res, 200, await listProducts());
-  if (req.method === "POST") {
-    checkPassword(passwordFrom(req));
-    return send(res, 201, await createProduct(await readJson(req)));
-  }
+  if (req.method === "POST") return send(res, 201, await createProduct(await readJson(req)));
   res.setHeader("Allow", "GET, POST");
   send(res, 405, { error: "허용되지 않는 메서드입니다" });
 });
@@ -201,21 +184,10 @@ const productByIdHandler = wrap(async (req, res) => {
     res.setHeader("Allow", "DELETE");
     return send(res, 405, { error: "허용되지 않는 메서드입니다" });
   }
-  checkPassword(passwordFrom(req));
   const id = req.query && req.query.id;
   if (!id) throw httpError(400, "상품코드가 필요합니다");
   await deleteProduct(String(id));
   send(res, 200, { ok: true });
 });
 
-// POST /api/auth — 비밀번호가 맞는지만 확인
-const authHandler = wrap(async (req, res) => {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return send(res, 405, { error: "허용되지 않는 메서드입니다" });
-  }
-  checkPassword(passwordFrom(req));
-  send(res, 200, { ok: true });
-});
-
-module.exports = { configErrors, productsHandler, productByIdHandler, authHandler, send };
+module.exports = { configErrors, productsHandler, productByIdHandler, send };
