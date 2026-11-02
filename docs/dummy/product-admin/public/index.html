@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>상품 관리</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --text: #1d2330; --muted: #667085;
+    --line: #e3e6eb; --accent: #2457c5; --accent-text: #ffffff;
+    --danger: #c23a3a; --chip: #eef2f8; --warn-bg: #fff4e0; --warn-text: #8a5300;
+    --bad-bg: #fde8e8; --bad-text: #a12626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --surface: #1d2128; --text: #e6e8ec; --muted: #9aa3b2;
+      --line: #313743; --accent: #6b95f0; --accent-text: #0e1420;
+      --danger: #f07373; --chip: #273041; --warn-bg: #3a2e14; --warn-text: #f3c26b;
+      --bad-bg: #3d1f22; --bad-text: #f3a0a0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  h1 { font-size: 18px; margin: 0; }
+  h1 small { color: var(--muted); font-weight: normal; font-size: 12px; margin-left: 8px; }
+  main { padding: 16px 24px 40px; max-width: 1200px; margin: 0 auto; }
+  button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); padding: 6px 12px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.danger { color: var(--danger); }
+  button.link { border: none; background: none; color: var(--accent); padding: 0 4px; }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; }
+  .filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 12px; }
+  .filters label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+  .filters .reset { align-self: end; }
+  .count { color: var(--muted); margin: 0 0 8px; }
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  #list tr { cursor: pointer; }
+  #list tr:hover { background: var(--chip); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px;
+    background: var(--chip); margin-right: 4px; }
+  .chip.contains { background: var(--bad-bg); color: var(--bad-text); }
+  .chip.cross { background: var(--warn-bg); color: var(--warn-text); }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; display: none; }
+  .msg.show { display: block; }
+  .msg.error { background: var(--bad-bg); color: var(--bad-text); }
+  .msg.ok { background: var(--chip); }
+  dialog { border: 1px solid var(--line); border-radius: 10px; padding: 0; width: min(880px, 94vw);
+    background: var(--surface); color: var(--text); }
+  dialog::backdrop { background: rgba(0, 0, 0, .4); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); }
+  .dlg-head h2 { margin: 0; font-size: 16px; }
+  .dlg-body { padding: 14px 18px; max-height: 72vh; overflow-y: auto; }
+  .dlg-foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+  h3 { font-size: 13px; margin: 18px 0 6px; display: flex; justify-content: space-between; align-items: center; }
+  h3:first-child { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .grid label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+  .grid .wide { grid-column: span 2; }
+  .grid .full { grid-column: 1 / -1; }
+  .req::after { content: " *"; color: var(--danger); }
+  .rows .row { display: grid; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .rows .row button { padding: 4px 8px; }
+  .row.origins { grid-template-columns: 1.2fr .7fr .9fr .8fr 1.2fr 1.2fr auto; }
+  .row.allergens { grid-template-columns: 1fr 1fr 2fr auto; }
+  .row.storage { grid-template-columns: .9fr .8fr .6fr .7fr .7fr 2fr auto; }
+  .row.guides { grid-template-columns: 1.1fr 2.2fr 1.6fr auto; }
+  .row .check { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+  .row .check input { width: auto; }
+  .hint { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .detail-table th { width: 1%; }
+  .detail-table td { white-space: normal; }
+  @media (max-width: 720px) {
+    header, main { padding-left: 16px; padding-right: 16px; }
+    .filters { grid-template-columns: 1fr 1fr; }
+    .filters label:first-child { grid-column: 1 / -1; }
+    .grid { grid-template-columns: 1fr 1fr; }
+    .rows .row { grid-template-columns: 1fr 1fr !important; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>상품 관리<small>실습용 가상 데이터 · 로컬 전용</small></h1>
+  <button class="primary" id="btn-add">+ 상품 추가</button>
+</header>
+
+<main>
+  <div class="msg" id="msg"></div>
+
+  <div class="filters">
+    <label>검색 (상품코드 · 상품명 · 설명 · 원재료)
+      <input id="f-q" type="search" placeholder="예: 사과, P-0402">
+    </label>
+    <label>분류
+      <select id="f-category"><option value="">전체</option></select>
+    </label>
+    <label>기본 보관방식
+      <select id="f-storage"><option value="">전체</option></select>
+    </label>
+    <label>이 유발물질 없는 상품만
+      <select id="f-allergen"><option value="">선택 안 함</option></select>
+    </label>
+    <button class="reset" id="f-reset">초기화</button>
+  </div>
+
+  <p class="count" id="count"></p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>상품코드</th><th>상품명</th><th>분류</th><th>판매가</th><th>용량</th>
+          <th>기본 보관</th><th>판매기간</th><th>알레르기</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="list"></tbody>
+    </table>
+  </div>
+</main>
+
+<!-- 상세 보기 -->
+<dialog id="dlg-detail">
+  <div class="dlg-head"><h2 id="detail-title"></h2><button data-close>닫기</button></div>
+  <div class="dlg-body" id="detail-body"></div>
+</dialog>
+
+<!-- 상품 추가 -->
+<dialog id="dlg-add">
+  <form id="form-add" novalidate>
+    <div class="dlg-head"><h2>상품 추가</h2><button type="button" data-close>닫기</button></div>
+    <div class="dlg-body">
+      <div class="msg error" id="add-msg"></div>
+
+      <h3>기본정보</h3>
+      <div class="grid">
+        <label><span class="req">상품코드</span><input name="product_id" placeholder="P-0000" required></label>
+        <label class="wide"><span class="req">상품명</span><input name="product_name" required></label>
+        <label>분류<select name="category"></select></label>
+        <label class="full">상품설명<input name="description"></label>
+        <label><span class="req">판매가(원)</span><input name="price" type="number" min="0" step="1" required></label>
+        <label>용량<input name="net_amount" type="number" min="0" step="any"></label>
+        <label>단위<select name="unit"></select></label>
+        <label>구성<input name="pack_note" placeholder="예: 2kg(7~9개)"></label>
+        <label>판매 시작월<input name="sale_start_month" type="number" min="1" max="12" placeholder="비우면 상시"></label>
+        <label>판매 종료월<input name="sale_end_month" type="number" min="1" max="12" placeholder="비우면 상시"></label>
+        <label class="wide">비고<input name="notes"></label>
+      </div>
+
+      <h3>원재료·원산지 <button type="button" class="link" data-add-row="origins">+ 행 추가</button></h3>
+      <div class="rows" id="rows-origins"></div>
+
+      <h3>알레르기 <button type="button" class="link" data-add-row="allergens">+ 행 추가</button></h3>
+      <p class="hint">유발물질이 없으면 비워 두세요.</p>
+      <div class="rows" id="rows-allergens"></div>
+
+      <h3>보관 조건 <button type="button" class="link" data-add-row="storage">+ 행 추가</button></h3>
+      <div class="rows" id="rows-storage"></div>
+
+      <h3>보관·조리·섭취 안내 <button type="button" class="link" data-add-row="guides">+ 행 추가</button></h3>
+      <div class="rows" id="rows-guides"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" data-close>취소</button>
+      <button type="submit" class="primary" id="btn-save">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+// 선택 목록 — 01_schema.sql의 CHECK 제약과 같게 유지한다
+const OPTIONS = {
+  category: ["과일", "채소", "가공식품", "냉동식품"],
+  unit: ["g", "kg", "ml"],
+  origin_country: ["국내산", "수입산"],
+  origin_province: ["대구", "경북"],
+  allergen: ["밀", "대두", "계란", "견과류", "우유", "땅콩", "새우", "복숭아", "토마토"],
+  exposure_type: ["함유", "교차오염"],
+  state: ["개봉 전", "개봉 후", "수령 후"],
+  method: ["상온", "냉장", "냉동"],
+  duration_unit: ["일", "주", "개월"],
+  guide_type: ["보관 금지", "보관 방법", "조리·사용 금지", "조리·사용 방법", "섭취 안내", "섭취 주의", "품질 안내"],
+};
+
+// 하위 행 입력칸 정의: [필드명, 표시명, 종류]
+const ROW_FIELDS = {
+  origins: [
+    ["ingredient", "원재료명 *", "text"], ["content_pct", "함량(%)", "number"],
+    ["origin_country", "국가", "select"], ["origin_province", "시도", "select"],
+    ["origin_area", "세부지역", "text"], ["note", "비고", "text"],
+  ],
+  allergens: [
+    ["allergen", "유발물질", "select-req"], ["exposure_type", "노출 유형", "select-req"], ["note", "근거", "text"],
+  ],
+  storage: [
+    ["state", "상태", "select-req"], ["method", "보관방식", "select-req"],
+    ["duration", "기간", "number"], ["duration_unit", "단위", "select"],
+    ["is_primary", "기본", "check"], ["note", "비고", "text"],
+  ],
+  guides: [
+    ["guide_type", "안내 유형", "select-req"], ["content", "안내 내용 *", "text"], ["reason", "이유", "text"],
+  ],
+};
+
+let products = [];
+const $ = (s) => document.querySelector(s);
+
+// HTML 이스케이프 — 데이터는 항상 이 함수를 거쳐 화면에 넣는다
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+const won = (n) => (n == null ? "" : Number(n).toLocaleString("ko-KR") + "원");
+const amount = (p) => (p.net_amount == null ? "" : `${Number(p.net_amount).toLocaleString("ko-KR")}${p.unit ?? ""}`);
+const period = (p) => (p.sale_start_month ? `${p.sale_start_month}~${p.sale_end_month}월` : "상시");
+const primaryStorage = (p) => [...new Set(p.product_storage.filter((s) => s.is_primary).map((s) => s.method))];
+const bySeq = (a, b) => (a.seq ?? 0) - (b.seq ?? 0);
+
+function optionTags(list, selected = "", blank = "") {
+  return (blank !== null ? `<option value="">${esc(blank)}</option>` : "") +
+    list.map((o) => `<option${o === selected ? " selected" : ""}>${esc(o)}</option>`).join("");
+}
+
+function showMsg(text, type = "ok") {
+  const el = $("#msg");
+  el.textContent = text;
+  el.className = `msg show ${type}`;
+  clearTimeout(showMsg.t);
+  if (type === "ok") showMsg.t = setTimeout(() => (el.className = "msg"), 3000);
+}
+
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `요청 실패 (${res.status})`);
+  return data;
+}
+
+// ── 목록 · 검색 ──
+async function load() {
+  try {
+    products = await api("GET", "/api/products");
+    render();
+  } catch (e) {
+    showMsg(`목록을 불러오지 못했습니다: ${e.message}`, "error");
+    $("#list").innerHTML = `<tr><td colspan="9" class="empty">데이터 없음</td></tr>`;
+  }
+}
+
+function filtered() {
+  const q = $("#f-q").value.trim().toLowerCase();
+  const cat = $("#f-category").value;
+  const st = $("#f-storage").value;
+  const noAllergen = $("#f-allergen").value;
+  return products.filter((p) => {
+    if (cat && p.category !== cat) return false;
+    if (st && !primaryStorage(p).includes(st)) return false;
+    if (noAllergen && p.product_allergens.some((a) => a.allergen === noAllergen)) return false;
+    if (!q) return true;
+    const hay = [p.product_id, p.product_name, p.description, ...p.product_origins.map((o) => o.ingredient)]
+      .join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function allergenChips(p) {
+  return p.product_allergens
+    .map((a) => `<span class="chip ${a.exposure_type === "함유" ? "contains" : "cross"}"
+      title="${esc(a.exposure_type)}">${esc(a.allergen)}${a.exposure_type === "교차오염" ? "(교차)" : ""}</span>`)
+    .join("") || `<span style="color:var(--muted)">없음</span>`;
+}
+
+function render() {
+  const rows = filtered();
+  $("#count").textContent = `전체 ${products.length}개 중 ${rows.length}개`;
+  $("#list").innerHTML = rows.length
+    ? rows.map((p) => `
+      <tr data-id="${esc(p.product_id)}">
+        <td>${esc(p.product_id)}</td>
+        <td>${esc(p.product_name)}</td>
+        <td>${esc(p.category)}</td>
+        <td class="num">${won(p.price)}</td>
+        <td class="num">${esc(amount(p))}</td>
+        <td>${esc(primaryStorage(p).join(", "))}</td>
+        <td>${esc(period(p))}</td>
+        <td>${allergenChips(p)}</td>
+        <td><button class="danger" data-delete="${esc(p.product_id)}">삭제</button></td>
+      </tr>`).join("")
+    : `<tr><td colspan="9" class="empty">조건에 맞는 상품이 없습니다</td></tr>`;
+}
+
+// ── 상세 보기 ──
+function sectionTable(title, headers, rows) {
+  if (!rows.length) return `<h3>${esc(title)}</h3><p class="hint">등록된 정보 없음</p>`;
+  return `<h3>${esc(title)}</h3><div class="table-wrap"><table class="detail-table">
+    <thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+function showDetail(id) {
+  const p = products.find((x) => x.product_id === id);
+  if (!p) return;
+  $("#detail-title").textContent = `${p.product_name} (${p.product_id})`;
+  $("#detail-body").innerHTML =
+    sectionTable("기본정보", ["항목", "값"], [
+      ["분류", p.category], ["상품설명", p.description], ["판매가", won(p.price)],
+      ["용량", amount(p)], ["구성", p.pack_note], ["판매기간", period(p)], ["비고", p.notes],
+    ]) +
+    sectionTable("원재료·원산지", ["순번", "원재료", "함량(%)", "국가", "시도", "세부지역", "비고"],
+      p.product_origins.sort(bySeq).map((o) =>
+        [o.seq, o.ingredient, o.content_pct, o.origin_country, o.origin_province, o.origin_area, o.note])) +
+    sectionTable("알레르기", ["유발물질", "노출 유형", "근거"],
+      p.product_allergens.map((a) => [a.allergen, a.exposure_type, a.note])) +
+    sectionTable("보관 조건", ["상태", "보관방식", "기간", "기본", "비고"],
+      p.product_storage.map((s) => [s.state, s.method,
+        s.duration == null ? "" : s.duration === 0 ? "당일" : `${s.duration}${s.duration_unit}`,
+        s.is_primary ? "Y" : "", s.note])) +
+    sectionTable("보관·조리·섭취 안내", ["유형", "내용", "이유"],
+      p.product_guides.sort(bySeq).map((g) => [g.guide_type, g.content, g.reason]));
+  $("#dlg-detail").showModal();
+}
+
+// ── 삭제 ──
+async function remove(id) {
+  const p = products.find((x) => x.product_id === id);
+  if (!confirm(`'${p?.product_name ?? id}' (${id})을(를) 삭제할까요?\n원산지·알레르기·보관·안내 정보도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+  try {
+    await api("DELETE", `/api/products/${encodeURIComponent(id)}`);
+    products = products.filter((x) => x.product_id !== id);
+    render();
+    showMsg(`${id} 삭제 완료`);
+  } catch (e) {
+    showMsg(`삭제 실패: ${e.message}`, "error");
+  }
+}
+
+// ── 추가 ──
+function addRow(kind) {
+  const div = document.createElement("div");
+  div.className = `row ${kind}`;
+  div.innerHTML = ROW_FIELDS[kind].map(([name, label, type]) => {
+    if (type === "check") return `<label class="check"><input type="checkbox" name="${name}">${esc(label)}</label>`;
+    if (type.startsWith("select")) return `<select name="${name}" aria-label="${esc(label)}">
+      ${optionTags(OPTIONS[name], "", type === "select-req" ? `${label} *` : label)}</select>`;
+    return `<input name="${name}" type="${type}" placeholder="${esc(label)}"${type === "number" ? ' min="0" step="any"' : ""}>`;
+  }).join("") + `<button type="button" title="행 삭제" data-remove-row>✕</button>`;
+  $(`#rows-${kind}`).appendChild(div);
+}
+
+function openAdd() {
+  const form = $("#form-add");
+  form.reset();
+  $("#add-msg").className = "msg error";
+  for (const kind of Object.keys(ROW_FIELDS)) $(`#rows-${kind}`).innerHTML = "";
+  addRow("origins");
+  addRow("storage");
+  $("#dlg-add").showModal();
+  form.product_id.focus();
+}
+
+const blankToNull = (v) => (v === "" ? null : v);
+const numOrNull = (v) => (v === "" ? null : Number(v));
+
+// 폼 값을 서버로 보낼 형태로 모은다. 문제가 있으면 오류 메시지를 던진다
+function collectForm() {
+  const f = $("#form-add");
+  const product = {
+    product_id: f.product_id.value.trim().toUpperCase(),
+    product_name: f.product_name.value.trim(),
+    category: blankToNull(f.category.value),
+    description: blankToNull(f.description.value.trim()),
+    price: numOrNull(f.price.value),
+    net_amount: numOrNull(f.net_amount.value),
+    unit: blankToNull(f.unit.value),
+    pack_note: blankToNull(f.pack_note.value.trim()),
+    sale_start_month: numOrNull(f.sale_start_month.value),
+    sale_end_month: numOrNull(f.sale_end_month.value),
+    notes: blankToNull(f.notes.value.trim()),
+  };
+  if (!/^P-\d{4}$/.test(product.product_id)) throw new Error("상품코드는 P-0000 형식이어야 합니다");
+  if (products.some((p) => p.product_id === product.product_id)) throw new Error("이미 있는 상품코드입니다");
+  if (!product.product_name) throw new Error("상품명을 입력하세요");
+  if (product.price == null || product.price < 0 || !Number.isInteger(product.price)) throw new Error("판매가는 0 이상의 정수로 입력하세요");
+  if ((product.sale_start_month == null) !== (product.sale_end_month == null)) throw new Error("판매 시작월과 종료월은 함께 입력하세요");
+
+  const out = { product };
+  for (const kind of Object.keys(ROW_FIELDS)) {
+    out[kind] = [];
+    $(`#rows-${kind}`).querySelectorAll(".row").forEach((rowEl) => {
+      const row = {};
+      for (const [name, , type] of ROW_FIELDS[kind]) {
+        const el = rowEl.querySelector(`[name="${name}"]`);
+        row[name] = type === "check" ? el.checked : type === "number" ? numOrNull(el.value) : blankToNull(el.value.trim());
+      }
+      // 내용이 하나도 없는 행은 건너뛴다
+      const filled = Object.entries(row).some(([k, v]) => k !== "is_primary" && v != null);
+      if (!filled) return;
+      out[kind].push(row);
+    });
+  }
+  // 필수값 · 짝 검사
+  out.origins.forEach((r, i) => { if (!r.ingredient) throw new Error(`원재료 ${i + 1}행: 원재료명을 입력하세요`); r.seq = i + 1; });
+  out.allergens.forEach((r, i) => { if (!r.allergen || !r.exposure_type) throw new Error(`알레르기 ${i + 1}행: 유발물질과 노출 유형을 고르세요`); });
+  out.storage.forEach((r, i) => {
+    if (!r.state || !r.method) throw new Error(`보관 조건 ${i + 1}행: 상태와 보관방식을 고르세요`);
+    if ((r.duration == null) !== (r.duration_unit == null)) throw new Error(`보관 조건 ${i + 1}행: 기간과 단위는 함께 입력하세요`);
+  });
+  out.guides.forEach((r, i) => {
+    if (!r.guide_type || !r.content) throw new Error(`안내 ${i + 1}행: 안내 유형과 내용을 입력하세요`);
+    r.seq = i + 1;
+  });
+  return out;
+}
+
+async function submitAdd(e) {
+  e.preventDefault();
+  const msg = $("#add-msg");
+  let payload;
+  try {
+    payload = collectForm();
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.className = "msg error show";
+    return;
+  }
+  const btn = $("#btn-save");
+  btn.disabled = true;
+  try {
+    const created = await api("POST", "/api/products", payload);
+    products.push(created);
+    products.sort((a, b) => a.product_id.localeCompare(b.product_id));
+    $("#dlg-add").close();
+    render();
+    showMsg(`${created.product_id} ${created.product_name} 추가 완료`);
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.className = "msg error show";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── 초기화 · 이벤트 연결 ──
+$("#f-category").innerHTML = optionTags(OPTIONS.category, "", "전체");
+$("#f-storage").innerHTML = optionTags(OPTIONS.method, "", "전체");
+$("#f-allergen").innerHTML = optionTags(OPTIONS.allergen, "", "선택 안 함");
+$("#form-add").category.innerHTML = optionTags(OPTIONS.category, "", "선택");
+$("#form-add").unit.innerHTML = optionTags(OPTIONS.unit, "", "선택");
+
+["#f-q", "#f-category", "#f-storage", "#f-allergen"].forEach((s) => $(s).addEventListener("input", render));
+$("#f-reset").addEventListener("click", () => {
+  ["#f-q", "#f-category", "#f-storage", "#f-allergen"].forEach((s) => ($(s).value = ""));
+  render();
+});
+$("#btn-add").addEventListener("click", openAdd);
+$("#form-add").addEventListener("submit", submitAdd);
+
+$("#list").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-delete]");
+  if (del) return remove(del.dataset.delete);
+  const tr = e.target.closest("tr[data-id]");
+  if (tr) showDetail(tr.dataset.id);
+});
+document.addEventListener("click", (e) => {
+  if (e.target.matches("[data-close]")) e.target.closest("dialog").close();
+  if (e.target.matches("[data-add-row]")) addRow(e.target.dataset.addRow);
+  if (e.target.matches("[data-remove-row]")) e.target.closest(".row").remove();
+});
+
+load();
+</script>
+</body>
+</html>
